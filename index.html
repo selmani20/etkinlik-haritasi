@@ -1,301 +1,257 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mosaic Ops Dashboard - Harita Sayfası</title>
-    
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        :root {
-            --bg-color: #f4f7f6;
-            --sidebar-width: 400px;
-            --text-color: #333;
-        }
- 
-        body {
-            margin: 0;
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            display: flex;
-            height: 100vh;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            overflow: hidden;
-        }
+ <base target="_top">
+ <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+ <style>
+   /* GENEL TASARIM */
+   body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f4f7f6; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+   
+   .nav { background: #2c3e50; color: white; display: flex; height: 50px; align-items: center; padding: 0 20px; z-index: 1001; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+   .nav-item { padding: 0 20px; cursor: pointer; font-weight: bold; font-size: 13px; opacity: 0.6; height: 100%; display: flex; align-items: center; transition: 0.3s; }
+   .nav-item.active { opacity: 1; border-bottom: 4px solid #3498db; background: rgba(255,255,255,0.05); }
 
-        /* Harita Alanı */
-        #map {
-            flex-grow: 1;
-            height: 100%;
-            z-index: 1;
-        }
+   /* SIDEBAR */
+   .sidebar { width: 350px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; padding: 15px; box-sizing: border-box; }
+   #recoList { flex: 1; overflow-y: auto; margin-top: 10px; border-top: 1px solid #eee; padding-top: 10px; }
+   
+   /* ANA GÖRÜNÜM */
+   .main-view { flex: 1; padding: 20px; overflow-y: auto; background: #f8fafc; }
+   .calendar-wrapper { min-width: 1100px; }
 
-        /* Sidebar (Etkinlik Listesi) */
-        #sidebar {
-            width: var(--sidebar-width);
-            height: 100%;
-            overflow-y: auto;
-            background: white;
-            box-shadow: -3px 0 15px rgba(0,0,0,0.1);
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-        }
+   /* HAFTA BAŞLIĞI VE CUMARTESİ */
+   .week-header { 
+     background: #ffffff; color: #34495e; padding: 12px; font-size: 14px; 
+     font-weight: bold; border-radius: 8px; margin-bottom: 10px; 
+     border-left: 6px solid #2c3e50; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+     display: flex; justify-content: space-between; align-items: center;
+   }
+   .sat-tag { color: #e74c3c; font-size: 11px; background: #fdedec; padding: 3px 8px; border-radius: 4px; font-weight: 800; border: 1px solid #fadbd8; }
 
-        .sidebar-header {
-            padding: 25px 20px;
-            background: #2c3e50;
-            color: white;
-            position: sticky;
-            top: 0;
-            z-index: 3;
-            border-bottom: 4px solid #34495e;
-        }
+   /* SLOT GRID */
+   .slot-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; margin-bottom: 25px; }
+   .slot { min-height: 115px; border: 2px dashed #d1d8e0; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: #fafafa; position: relative; transition: 0.2s; }
+   .slot:hover { border-color: #3498db; background: #f1f9ff; }
 
-        .sidebar-header h2 { margin: 0; font-size: 22px; font-weight: 600; }
-        .sidebar-header p { margin: 5px 0 0 0; font-size: 14px; opacity: 0.8; }
+   /* RENK GRUPLARI (Açık Arkaplan / Koyu Font & Border) */
+   .color-group-blue { background: #e3f2fd !important; border: 2px solid #2196f3 !important; color: #1565c0 !important; }
+   .color-group-orange { background: #fff3e0 !important; border: 2px solid #fb8c00 !important; color: #e65100 !important; }
+   .color-group-green { background: #e8f5e9 !important; border: 2px solid #4caf50 !important; color: #2e7d32 !important; }
+   .color-group-purple { background: #f3e5f5 !important; border: 2px solid #9c27b0 !important; color: #7b1fa2 !important; }
+   .color-group-red { background: #ffebee !important; border: 2px solid #f44336 !important; color: #c62828 !important; }
 
-        #event-list {
-            padding: 20px;
-            flex-grow: 1;
-        }
+   /* KART STİLİ */
+   .filled-card { width: 94%; height: 94%; text-align: center; display: flex; flex-direction: column; justify-content: center; border-radius: 8px; cursor: pointer; padding: 5px; box-sizing: border-box; }
+   .city-label { font-size: 10px; font-weight: 800; text-transform: uppercase; opacity: 0.8; }
+   .state-label { font-size: 20px; font-weight: 900; margin: 2px 0; }
+   .duration-info { font-size: 9px; font-weight: bold; background: rgba(0,0,0,0.05); padding: 2px 4px; border-radius: 3px; display: inline-block; margin: 4px auto 0; }
 
-        /* Etkinlik Kartı Tasarımı */
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 18px;
-            margin-bottom: 18px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            transition: all 0.3s ease;
-            border-left: 8px solid #ccc; /* Dinamik renk gelecek */
-            cursor: pointer;
-            position: relative;
-            overflow: hidden;
-        }
-
-        /* Hover efekti (sadece tam opak kartlar için) */
-        .card:not(.planning-mode):hover {
-            transform: translateY(-4px);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
-        }
-
-        /* Planlama Aşamasındaki Kartların Görünümü (Soluk) */
-        .card.planning-mode {
-            opacity: 0.5;
-            background: #fafafa;
-        }
-
-        .card h3 {
-            margin: 0 0 10px 0;
-            font-size: 18px;
-            color: #2c3e50;
-            font-weight: 600;
-        }
-
-        .card-meta {
-            font-size: 14px;
-            color: #7f8c8d;
-            margin-bottom: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .status-badge {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            font-size: 11px;
-            font-weight: bold;
-            padding: 4px 8px;
-            border-radius: 20px;
-            text-transform: uppercase;
-        }
-
-        .status-hazir {
-            background-color: #d4edda;
-            color: #155724;
-        }
-
-        .status-planlama {
-            background-color: #e2e3e5;
-            color: #383d41;
-        }
-
-        .day-counter {
-            display: inline-block;
-            background: #ecf0f1;
-            padding: 5px 10px;
-            border-radius: 6px;
-            font-weight: bold;
-            font-size: 13px;
-            margin-top: 10px;
-            color: #34495e;
-        }
-
-        /* Yükleniyor Uyarısı */
-        .loader {
-            text-align: center;
-            padding: 100px 20px;
-            color: #95a5a6;
-            font-size: 16px;
-        }
-        
-        .loader-spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #3498db;
-            border-radius: 50%;
-            width: 30px;
-            height: 30px;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-    </style>
+   /* MODALLAR */
+   .modal { display:none; position:fixed; z-index:9999; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.6); backdrop-filter: blur(3px); }
+   .modal-content { background:white; margin:10% auto; padding:25px; border-radius:15px; width:360px; text-align:center; box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+   input, select { width: 100%; padding: 12px; margin: 10px 0; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+   .btn-primary { background: #3498db; color: white; border: none; padding: 14px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%; font-size: 15px; margin-top: 10px; }
+   .del-btn { position: absolute; top: -8px; right: -8px; background: #e74c3c; color: white; width: 22px; height: 22px; border-radius: 50%; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; border: 2px solid white; font-weight: bold; }
+ </style>
 </head>
 <body>
 
-    <div id="map"></div>
+<div class="nav">
+  <div class="nav-item active" onclick="switchTab('map-tab', this)">🗺️ ANALİZ HARİTASI</div>
+  <div class="nav-item" onclick="switchTab('plan-tab', this)">📅 ROTA PLANLAMA</div>
+</div>
 
-    <div id="sidebar">
-        <div class="sidebar-header">
-            <h2>Mosaic Operasyon Haritası</h2>
-            <p>Canlı Etkinlik Durumu ve Planlama Paneli</p>
-        </div>
-        <div id="event-list">
-            <div class="loader">
-                <div class="loader-spinner"></div>
-                Google Sheets verileri yükleniyor...
-            </div>
-        </div>
+<div id="map-tab" class="tab-content" style="display: flex; flex: 1; flex-direction: column;">
+  <div id="map" style="flex:1;"></div>
+</div>
+
+<div id="plan-tab" class="tab-content" style="display: none; flex: 1; flex-direction: column;">
+  <div style="padding:15px; background:white; border-bottom:1px solid #ddd; display:flex; gap:15px; align-items:center;">
+    <select id="activeMonth" onchange="initCalendar()" style="width: 220px; font-weight: bold;"></select>
+    <button onclick="loadData()" style="background:#ecf0f1; border:1px solid #bdc3c7; padding:8px 15px; border-radius:5px; cursor:pointer; font-weight:bold;">🔄 Verileri Tazele</button>
+  </div>
+  <div style="display:flex; flex:1; overflow:hidden;">
+    <div class="sidebar">
+      <select id="stateSelect" onchange="filterList()"></select>
+      <input type="text" id="citySearch" placeholder="Şehir ara..." oninput="filterList()">
+      <div id="recoList"></div> 
     </div>
+    <div class="main-view">
+      <div class="calendar-wrapper" id="calendarRoot"></div>
+    </div>
+  </div>
+</div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // SİZİN EN SON YAYINLANMIŞ WEB APP URL'NİZ
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxgeGQj-cumCeWLaPgiGg-koBIN_Ku4NJprHjT9Arhx98aoBkolB7OBYosEHq-TwNpCsg/exec';
+<!-- PLANLAMA MODALI -->
+<div id="dateModal" class="modal">
+  <div class="modal-content">
+    <h2 id="planCityTitle" style="margin:0 0 15px 0; color:#2c3e50;">Şehir</h2>
+    <div style="text-align:left;">
+      <label style="font-size:12px; font-weight:bold; color:#7f8c8d;">BAŞLANGIÇ (USA FORMAT: YYYY-MM-DD)</label>
+      <input type="date" id="pStart">
+      
+      <label style="font-size:12px; font-weight:bold; color:#7f8c8d; margin-top:10px; display:block;">ETKİNLİK SÜRESİ</label>
+      <select id="pDuration">
+        <option value="1">1 GÜN (Atölye)</option>
+        <option value="2">2 GÜN (Hafta Sonu)</option>
+        <option value="3">3 GÜN (Cuma - Pazar)</option>
+        <option value="4">4 GÜN (Masterclass)</option>
+      </select>
+    </div>
+    <button onclick="confirmPlacement()" class="btn-primary">🗓️ TAKVİME İŞLE</button>
+    <button onclick="closeModals()" style="background:none; border:none; color:#95a5a6; cursor:pointer; margin-top:15px; font-weight:bold;">İptal Et</button>
+  </div>
+</div>
 
-        // Haritayı Başlat (ABD Merkezi)
-        const map = L.map('map', {
-            zoomControl: false // Varsayılan kontrolleri kapatalım, alta şık ekleriz
-        }).setView([39.8283, -98.5795], 4);
-        
-        // Zoom kontrolünü sağ alta alalım
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+ let rawData = { history: [], existingPlans: [], states: [] }, draggedData = null, map, markers = [];
+ 
+ const COLOR_GROUPS = {
+   "#3498db": "color-group-blue",
+   "#e67e22": "color-group-orange",
+   "#2ecc71": "color-group-green",
+   "#9b59b6": "color-group-purple",
+   "#e74c3c": "color-group-red"
+ };
 
-        // Harita Katmanı (Açık renkli bir altlık kullanalım ki pinler belli olsun)
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap &copy; CARTO'
-        }).addTo(map);
+ window.onload = () => {
+   map = L.map('map').setView([39.8, -98.5], 4);
+   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+   
+   const mSel = document.getElementById('activeMonth');
+   const now = new Date();
+   for(let i=0; i<12; i++){
+     let d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+     let opt = document.createElement('option');
+     opt.value = (d.getMonth()+1) + '-' + d.getFullYear();
+     opt.textContent = d.toLocaleString('tr-TR', {month:'long'}) + ' ' + d.getFullYear();
+     mSel.appendChild(opt);
+   }
+   loadData();
+ };
 
-        async function initDashboard() {
-            try {
-                const response = await fetch(API_URL);
-                if (!response.ok) throw new Error('Ağ yanıtı düzgün değil.');
-                const data = await response.json();
-                
-                if (!data || data.length === 0) {
-                    document.getElementById('event-list').innerHTML = '<div class="loader">Gösterilecek etkinlik bulunamadı.</div>';
-                    return;
-                }
+ function switchTab(tabId, el) {
+   document.querySelectorAll('.tab-content').forEach(t => t.style.display = 'none');
+   document.getElementById(tabId).style.display = 'flex';
+   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+   el.classList.add('active');
+   if(tabId==='map-tab') setTimeout(()=>map.invalidateSize(), 200);
+ }
 
-                // Verileri render et
-                renderEvents(data);
-            } catch (error) {
-                console.error("Hata:", error);
-                document.getElementById('event-list').innerHTML = `<div class="loader" style="color:red;">Veri çekme hatası oluştu. <br><br>Lütfen Google Apps Script URL'nizin doğruluğunu ve "Erişim" ayarının "Anyone" (Herkes) olduğunu kontrol edin.</div>`;
-            }
-        }
+ function loadData() {
+   google.script.run.withSuccessHandler(res => {
+     rawData = res;
+     const st = document.getElementById('stateSelect');
+     st.innerHTML = '<option value="">Tüm Eyaletler</option>';
+     res.states.forEach(s => st.innerHTML += `<option value="${s}">${s}</option>`);
+     initCalendar(); filterList(); renderMarkers();
+   }).getInitialData();
+ }
 
-        function renderEvents(events) {
-            const listContainer = document.getElementById('event-list');
-            listContainer.innerHTML = '';
+ function initCalendar() {
+   const root = document.getElementById('calendarRoot'); root.innerHTML = "";
+   const [m, y] = document.getElementById('activeMonth').value.split('-').map(Number);
+   const monthName = document.getElementById('activeMonth').selectedOptions[0].text.split(' ')[0];
+   
+   for (let w = 1; w <= 5; w++) {
+     let startDayNum = (w-1) * 7 + 1;
+     let startDate = new Date(y, m-1, startDayNum);
+     
+     // Cumartesi Hesaplama
+     let satOffset = (6 - startDate.getDay() + 7) % 7;
+     let satDate = new Date(y, m-1, startDayNum + satOffset);
+     
+     // USA Format Tarih stringleri (YYYY-MM-DD)
+     const startStr = startDate.toISOString().split('T')[0];
+     const satStr = satDate.toISOString().split('T')[0];
 
-            // Pinleri bir grupta toplayalım ki haritayı otomatik sığdırabilelim
-            const markerGroup = L.featureGroup().addTo(map);
+     let headerHtml = `
+       <div class="week-header">
+         <span>${w}. HAFTA <small style="color:#7f8c8d; font-weight:normal; margin-left:10px;">${startDate.getDate()} - ${startDate.getDate()+6} ${monthName}</small></span>
+         <span class="sat-tag">🗓️ Sat: ${satStr}</span>
+       </div>
+       <div class="slot-grid" id="week-${w}">`;
+     
+     for (let s = 1; s <= 10; s++) headerHtml += `<div class="slot" ondragover="event.preventDefault();" ondrop="handleDrop(event)">-</div>`;
+     root.innerHTML += headerHtml + `</div>`;
+   }
 
-            events.forEach(event => {
-                // Koordinat kontrolü
-                const lat = parseFloat(event.enlem);
-                const lng = parseFloat(event.boylam);
-                
-                // Google'dan gelen renk ve durum ayarları
-                const colorHex = event.renk_semasi ? event.renk_semasi.hex : "#333333";
-                const opacityVal = event.renk_semasi ? event.renk_semasi.opacity : 0.5;
-                const isReady = event.renk_semasi ? event.renk_semasi.isReady : false;
-                const statusLabel = event.durum || 'Planlama';
+   rawData.existingPlans.forEach(p => {
+     if(Number(p.month) === m && Number(p.year) === y) {
+       let week = Math.ceil(p.day / 7); if(week > 5) week = 5;
+       const targetWeek = document.getElementById(`week-${week}`);
+       if(targetWeek) {
+         const slot = Array.from(targetWeek.children).find(s => s.innerText === "-");
+         if(slot) fillSlot(slot, p);
+       }
+     }
+   });
+ }
 
-                if (!isNaN(lat) && !isNaN(lng)) {
-                    // 1. HARİTAYA PİN (Marker) EKLEME
-                    // Hazır olanları daha büyük, planlama olanları daha küçük yapalım
-                    const radiusSize = isReady ? 14 : 10;
-                    
-                    const marker = L.circleMarker([lat, lng], {
-                        radius: radiusSize,
-                        fillColor: colorHex,
-                        color: "#FFFFFF", // Kenarlık beyaz
-                        weight: 2,
-                        fillOpacity: opacityVal // Burası Google'dan gelen Hazır/Planlama ayarı
-                    });
+ function fillSlot(slot, p) {
+   const colorClass = COLOR_GROUPS[p.userColor] || COLOR_GROUPS[p.color] || "color-group-blue";
+   
+   slot.innerHTML = `
+     <div class="del-btn" onclick="deleteItem('${p.cityFull}','${p.startDateIso}')">×</div>
+     <div class="filled-card ${colorClass}" title="Adres: ${p.addr}">
+       <div class="city-label">${p.cityOnly}</div>
+       <div class="state-label">${p.state}</div>
+       <div style="font-size:11px; font-weight:bold;">👥 ${p.count}</div>
+       <div class="duration-info">${p.startDateIso} / ${p.endDateIso}</div>
+     </div>`;
+ }
 
-                    // Pop-up içeriği
-                    const popupContent = `
-                        <div style="font-family:sans-serif; padding:5px;">
-                            <b style="font-size:14px; color:#2c3e50;">${event.lokasyon_isimleri}</b><br>
-                            <span style="font-size:12px; color:#7f8c8d;">Bölge: ${event.bolge}</span><br>
-                            <div style="margin-top:8px; padding:4px 8px; background:${isReady ? '#d4edda' : '#e2e3e5'}; color:${isReady ? '#155724' : '#383d41'}; border-radius:4px; font-size:11px; font-weight:bold; text-align:center;">
-                                ${statusLabel.toUpperCase()}
-                            </div>
-                        </div>
-                    `;
-                    marker.bindPopup(popupContent);
-                    markerGroup.addLayer(marker);
-                }
+ function filterList() {
+   const st = document.getElementById('stateSelect').value;
+   const key = document.getElementById('citySearch').value.toLowerCase();
+   const list = rawData.history.filter(h => (st === "" || h.state === st) && h.cityFull.toLowerCase().includes(key));
+   
+   document.getElementById('recoList').innerHTML = list.map(h => `
+     <div style="background:white; padding:12px; margin-bottom:8px; border-radius:8px; cursor:grab; border-left:5px solid #3498db; box-shadow:0 2px 4px rgba(0,0,0,0.05);" 
+          draggable="true" ondragstart='draggedData=${JSON.stringify(h)}'>
+       <div style="font-weight:bold; color:#2c3e50;">${h.cityOnly} [${h.state}]</div>
+       <div style="font-size:11px; color:#7f8c8d;">Last Date: ${h.startDateIso}</div>
+     </div>`).join('');
+ }
 
-                // 2. SIDEBAR KARTI OLUŞTURMA
-                const card = document.createElement('div');
-                card.className = `card ${isReady ? '' : 'planning-mode'}`;
-                card.style.borderLeftColor = colorHex;
+ function handleDrop(e) { e.preventDefault(); document.getElementById('planCityTitle').innerText = draggedData.cityOnly; document.getElementById('dateModal').style.display='block'; }
 
-                // Tarih formatlama
-                let dateStr = "Tarih Belirsiz";
-                if (event.baslangic_tarihi && event.bitis_tarihi) {
-                    const start = new Date(event.baslangic_tarihi).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-                    const end = new Date(event.bitis_tarihi).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
-                    dateStr = `${start} - ${end}`;
-                }
-                
-                card.innerHTML = `
-                    <span class="status-badge ${isReady ? 'status-hazir' : 'status-planlama'}">${statusLabel}</span>
-                    <h3>${event.lokasyon_isimleri}</h3>
-                    <div class="card-meta">📍 ${event.bolge}</div>
-                    <div class="card-meta">📅 ${dateStr}</div>
-                    ${event.hesaplanan_gun ? `<div class="day-counter">${event.hesaplanan_gun}</div>` : ''}
-                `;
+ function confirmPlacement() {
+   const startVal = document.getElementById('pStart').value; // USA format (YYYY-MM-DD)
+   const duration = parseInt(document.getElementById('pDuration').value);
+   
+   if(!startVal) { alert("Lütfen tarih seçin!"); return; }
 
-                // Karta tıklayınca haritada oraya odaklan
-                card.onclick = () => {
-                    if (!isNaN(lat) && !isNaN(lng)) {
-                        map.setView([lat, lng], 9, { animate: true });
-                    }
-                };
+   const startDate = new Date(startVal + "T00:00:00");
+   const endDate = new Date(startDate);
+   endDate.setDate(startDate.getDate() + (duration - 1));
 
-                listContainer.appendChild(card);
-            });
+   const p = {
+     ...draggedData,
+     startDateIso: startVal,
+     endDateIso: endDate.toISOString().split('T')[0],
+     monthName: document.getElementById('activeMonth').selectedOptions[0].text
+   };
 
-            // Haritayı tüm pinleri gösterecek şekilde sığdır (Eğer pin varsa)
-            if (markerGroup.getLayers().length > 0) {
-                map.fitBounds(markerGroup.getBounds().pad(0.1));
-            }
-        }
+   google.script.run.withSuccessHandler(() => { 
+     closeModals(); 
+     loadData(); 
+   }).saveToSheet1(p);
+ }
 
-        // Başlat
-        initDashboard();
-    </script>
+ function renderMarkers() {
+   markers.forEach(m => map.removeLayer(m)); markers = [];
+   rawData.existingPlans.forEach(h => {
+     if(!h.lat) return;
+     const m = L.circleMarker([h.lat, h.lng], {radius: 8, color: '#fff', weight: 2, fillColor: h.userColor || h.color, fillOpacity: 0.8}).addTo(map);
+     m.bindPopup(`<b>${h.cityFull}</b><br>${h.startDateIso} to ${h.endDateIso}`);
+     markers.push(m);
+   });
+ }
+
+ function deleteItem(c, d) { if(confirm(c + ' planını silmek istiyor musunuz?')) google.script.run.withSuccessHandler(loadData).deletePlanItem(c,d); }
+ function closeModals() { document.querySelectorAll('.modal').forEach(m => m.style.display='none'); }
+</script>
 </body>
 </html>

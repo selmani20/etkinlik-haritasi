@@ -3,21 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Etkinlik Haritası & Planlama Dashboard</title>
+    <title>Mosaic Ops Dashboard - Harita Sayfası</title>
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         :root {
-            --bg-color: #f8f9fa;
-            --sidebar-width: 380px;
+            --bg-color: #f4f7f6;
+            --sidebar-width: 400px;
+            --text-color: #333;
         }
 
         body {
             margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             display: flex;
             height: 100vh;
             background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden;
         }
 
         /* Harita Alanı */
@@ -27,80 +30,131 @@
             z-index: 1;
         }
 
-        /* Sidebar (Etkinlik Kartları) */
+        /* Sidebar (Etkinlik Listesi) */
         #sidebar {
             width: var(--sidebar-width);
             height: 100%;
             overflow-y: auto;
             background: white;
-            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            box-shadow: -3px 0 15px rgba(0,0,0,0.1);
             z-index: 2;
             display: flex;
             flex-direction: column;
         }
 
         .sidebar-header {
-            padding: 20px;
+            padding: 25px 20px;
             background: #2c3e50;
             color: white;
             position: sticky;
             top: 0;
             z-index: 3;
+            border-bottom: 4px solid #34495e;
         }
 
-        .sidebar-header h2 { margin: 0; font-size: 20px; }
+        .sidebar-header h2 { margin: 0; font-size: 22px; font-weight: 600; }
+        .sidebar-header p { margin: 5px 0 0 0; font-size: 14px; opacity: 0.8; }
 
         #event-list {
-            padding: 15px;
+            padding: 20px;
+            flex-grow: 1;
         }
 
         /* Etkinlik Kartı Tasarımı */
         .card {
             background: white;
             border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 16px;
+            padding: 18px;
+            margin-bottom: 18px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
-            transition: transform 0.2s;
+            transition: all 0.3s ease;
             border-left: 8px solid #ccc; /* Dinamik renk gelecek */
             cursor: pointer;
+            position: relative;
+            overflow: hidden;
         }
 
-        .card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        /* Hover efekti (sadece tam opak kartlar için) */
+        .card:not(.planning-mode):hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Planlama Aşamasındaki Kartların Görünümü (Soluk) */
+        .card.planning-mode {
+            opacity: 0.5;
+            background: #fafafa;
         }
 
         .card h3 {
-            margin: 0 0 8px 0;
-            font-size: 17px;
+            margin: 0 0 10px 0;
+            font-size: 18px;
             color: #2c3e50;
-            text-transform: capitalize;
+            font-weight: 600;
         }
 
-        .card-info {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 4px;
+        .card-meta {
+            font-size: 14px;
+            color: #7f8c8d;
+            margin-bottom: 6px;
             display: flex;
             align-items: center;
+            gap: 8px;
         }
 
-        .day-badge {
-            display: inline-block;
-            background: #eee;
-            padding: 4px 8px;
-            border-radius: 4px;
+        .status-badge {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            font-size: 11px;
             font-weight: bold;
-            font-size: 12px;
-            margin-top: 8px;
+            padding: 4px 8px;
+            border-radius: 20px;
+            text-transform: uppercase;
+        }
+
+        .status-hazir {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status-planlama {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
+        .day-counter {
+            display: inline-block;
+            background: #ecf0f1;
+            padding: 5px 10px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 13px;
+            margin-top: 10px;
+            color: #34495e;
         }
 
         /* Yükleniyor Uyarısı */
         .loader {
             text-align: center;
-            padding: 50px;
-            color: #999;
+            padding: 100px 20px;
+            color: #95a5a6;
+            font-size: 16px;
+        }
+        
+        .loader-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -110,38 +164,51 @@
 
     <div id="sidebar">
         <div class="sidebar-header">
-            <h2>Etkinlik Listesi</h2>
+            <h2>Mosaic Operasyon Haritası</h2>
+            <p>Canlı Etkinlik Durumu ve Planlama Paneli</p>
         </div>
         <div id="event-list">
-            <div class="loader">Veriler yükleniyor...</div>
+            <div class="loader">
+                <div class="loader-spinner"></div>
+                Google Sheets verileri yükleniyor...
+            </div>
         </div>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // SİZİN WEB APP URL'NİZ
-        const API_URL = 'https://script.google.com/macros/s/AKfycbxgeGQj-cumCeWLaPgiGg-koBIN_Ku4NJprHjT9Arhx98aoBkolB7OBYosEHq-TwNpCsg/exec';
+        // SİZİN EN SON YAYINLANMIŞ WEB APP URL'NİZ
+        const API_URL = 'BURAYA_EN_SON_EXEC_URLSINI_YAPISTIR';
 
         // Haritayı Başlat (ABD Merkezi)
-        const map = L.map('map').setView([39.8283, -98.5795], 4);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; OpenStreetMap'
+        const map = L.map('map', {
+            zoomControl: false // Varsayılan kontrolleri kapatalım, alta şık ekleriz
+        }).setView([39.8283, -98.5795], 4);
+        
+        // Zoom kontrolünü sağ alta alalım
+        L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+        // Harita Katmanı (Açık renkli bir altlık kullanalım ki pinler belli olsun)
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
         }).addTo(map);
 
         async function initDashboard() {
             try {
                 const response = await fetch(API_URL);
+                if (!response.ok) throw new Error('Ağ yanıtı düzgün değil.');
                 const data = await response.json();
                 
                 if (!data || data.length === 0) {
-                    document.getElementById('event-list').innerHTML = "Etkinlik bulunamadı.";
+                    document.getElementById('event-list').innerHTML = '<div class="loader">Gösterilecek etkinlik bulunamadı.</div>';
                     return;
                 }
 
+                // Verileri render et
                 renderEvents(data);
             } catch (error) {
                 console.error("Hata:", error);
-                document.getElementById('event-list').innerHTML = "Veri çekme hatası oluştu.";
+                document.getElementById('event-list').innerHTML = `<div class="loader" style="color:red;">Veri çekme hatası oluştu. <br><br>Lütfen Google Apps Script URL'nizin doğruluğunu ve "Erişim" ayarının "Anyone" (Herkes) olduğunu kontrol edin.</div>`;
             }
         }
 
@@ -149,49 +216,85 @@
             const listContainer = document.getElementById('event-list');
             listContainer.innerHTML = '';
 
+            // Pinleri bir grupta toplayalım ki haritayı otomatik sığdırabilelim
+            const markerGroup = L.featureGroup().addTo(map);
+
             events.forEach(event => {
-                // Koordinat kontrolü (Haritada gösterilmesi için enlem/boylam şart)
+                // Koordinat kontrolü
                 const lat = parseFloat(event.enlem);
                 const lng = parseFloat(event.boylam);
+                
+                // Google'dan gelen renk ve durum ayarları
+                const colorHex = event.renk_semasi ? event.renk_semasi.hex : "#333333";
+                const opacityVal = event.renk_semasi ? event.renk_semasi.opacity : 0.5;
+                const isReady = event.renk_semasi ? event.renk_semasi.isReady : false;
+                const statusLabel = event.durum || 'Planlama';
 
                 if (!isNaN(lat) && !isNaN(lng)) {
-                    // 1. Haritaya Pin (Marker) Ekleme
+                    // 1. HARİTAYA PİN (Marker) EKLEME
+                    // Hazır olanları daha büyük, planlama olanları daha küçük yapalım
+                    const radiusSize = isReady ? 14 : 10;
+                    
                     const marker = L.circleMarker([lat, lng], {
-                        radius: 10,
-                        fillColor: event.renk_semasi.dark,
-                        color: event.renk_semasi.light,
+                        radius: radiusSize,
+                        fillColor: colorHex,
+                        color: "#FFFFFF", // Kenarlık beyaz
                         weight: 2,
-                        fillOpacity: 0.9
-                    }).addTo(map);
+                        fillOpacity: opacityVal // Burası Google'dan gelen Hazır/Planlama ayarı
+                    });
 
-                    marker.bindPopup(`<b>${event.lokasyon_isimleri}</b><br>${event.hesaplanan_gun}`);
+                    // Pop-up içeriği
+                    const popupContent = `
+                        <div style="font-family:sans-serif; padding:5px;">
+                            <b style="font-size:14px; color:#2c3e50;">${event.lokasyon_isimleri}</b><br>
+                            <span style="font-size:12px; color:#7f8c8d;">Bölge: ${event.bolge}</span><br>
+                            <div style="margin-top:8px; padding:4px 8px; background:${isReady ? '#d4edda' : '#e2e3e5'}; color:${isReady ? '#155724' : '#383d41'}; border-radius:4px; font-size:11px; font-weight:bold; text-align:center;">
+                                ${statusLabel.toUpperCase()}
+                            </div>
+                        </div>
+                    `;
+                    marker.bindPopup(popupContent);
+                    markerGroup.addLayer(marker);
                 }
 
-                // 2. Sidebar Kartı Oluşturma
+                // 2. SIDEBAR KARTI OLUŞTURMA
                 const card = document.createElement('div');
-                card.className = 'card';
-                card.style.borderLeftColor = event.renk_semasi.dark;
-                card.style.backgroundColor = event.renk_semasi.light + "1A"; // %10 şeffaf arka plan
+                card.className = `card ${isReady ? '' : 'planning-mode'}`;
+                card.style.borderLeftColor = colorHex;
 
-                // İsim temizleme (Mosaic/Ceramic kısmını atar)
-                const cleanName = event.lokasyon_isimleri
-                    .replace(/Mosaic Classes in /gi, '')
-                    .replace(/Ceramic Classes in /gi, '');
-
+                // Tarih formatlama
+                let dateStr = "Tarih Belirsiz";
+                if (event.baslangic_tarihi && event.bitis_tarihi) {
+                    const start = new Date(event.baslangic_tarihi).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+                    const end = new Date(event.bitis_tarihi).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short', year: 'numeric' });
+                    dateStr = `${start} - ${end}`;
+                }
+                
                 card.innerHTML = `
-                    <h3>${cleanName}</h3>
-                    <div class="card-info">📅 ${new Date(event.baslangic_tarihi).toLocaleDateString('tr-TR')} - ${new Date(event.bitis_tarihi).toLocaleDateString('tr-TR')}</div>
-                    <div class="day-badge" style="color: ${event.renk_semasi.dark}">${event.hesaplanan_gun}</div>
+                    <span class="status-badge ${isReady ? 'status-hazir' : 'status-planlama'}">${statusLabel}</span>
+                    <h3>${event.lokasyon_isimleri}</h3>
+                    <div class="card-meta">📍 ${event.bolge}</div>
+                    <div class="card-meta">📅 ${dateStr}</div>
+                    ${event.hesaplanan_gun ? `<div class="day-counter">${event.hesaplanan_gun}</div>` : ''}
                 `;
 
+                // Karta tıklayınca haritada oraya odaklan
                 card.onclick = () => {
-                    if (!isNaN(lat)) map.setView([lat, lng], 8);
+                    if (!isNaN(lat) && !isNaN(lng)) {
+                        map.setView([lat, lng], 9, { animate: true });
+                    }
                 };
 
                 listContainer.appendChild(card);
             });
+
+            // Haritayı tüm pinleri gösterecek şekilde sığdır (Eğer pin varsa)
+            if (markerGroup.getLayers().length > 0) {
+                map.fitBounds(markerGroup.getBounds().pad(0.1));
+            }
         }
 
+        // Başlat
         initDashboard();
     </script>
 </body>

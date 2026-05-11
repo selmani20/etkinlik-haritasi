@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Etkinlik Haritası & Planlama Dashboard</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --sidebar-width: 380px;
+        }
+
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-color);
+        }
+
+        /* Harita Alanı */
+        #map {
+            flex-grow: 1;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* Sidebar (Etkinlik Kartları) */
+        #sidebar {
+            width: var(--sidebar-width);
+            height: 100%;
+            overflow-y: auto;
+            background: white;
+            box-shadow: -2px 0 10px rgba(0,0,0,0.1);
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 20px;
+            background: #2c3e50;
+            color: white;
+            position: sticky;
+            top: 0;
+            z-index: 3;
+        }
+
+        .sidebar-header h2 { margin: 0; font-size: 20px; }
+
+        #event-list {
+            padding: 15px;
+        }
+
+        /* Etkinlik Kartı Tasarımı */
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            border-left: 8px solid #ccc; /* Dinamik renk gelecek */
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.1);
+        }
+
+        .card h3 {
+            margin: 0 0 8px 0;
+            font-size: 17px;
+            color: #2c3e50;
+            text-transform: capitalize;
+        }
+
+        .card-info {
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+        }
+
+        .day-badge {
+            display: inline-block;
+            background: #eee;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        /* Yükleniyor Uyarısı */
+        .loader {
+            text-align: center;
+            padding: 50px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="sidebar">
+        <div class="sidebar-header">
+            <h2>Etkinlik Listesi</h2>
+        </div>
+        <div id="event-list">
+            <div class="loader">Veriler yükleniyor...</div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // SİZİN WEB APP URL'NİZ
+        const API_URL = 'https://script.google.com/macros/s/AKfycbxgeGQj-cumCeWLaPgiGg-koBIN_Ku4NJprHjT9Arhx98aoBkolB7OBYosEHq-TwNpCsg/exec';
+
+        // Haritayı Başlat (ABD Merkezi)
+        const map = L.map('map').setView([39.8283, -98.5795], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        async function initDashboard() {
+            try {
+                const response = await fetch(API_URL);
+                const data = await response.json();
+                
+                if (!data || data.length === 0) {
+                    document.getElementById('event-list').innerHTML = "Etkinlik bulunamadı.";
+                    return;
+                }
+
+                renderEvents(data);
+            } catch (error) {
+                console.error("Hata:", error);
+                document.getElementById('event-list').innerHTML = "Veri çekme hatası oluştu.";
+            }
+        }
+
+        function renderEvents(events) {
+            const listContainer = document.getElementById('event-list');
+            listContainer.innerHTML = '';
+
+            events.forEach(event => {
+                // Koordinat kontrolü (Haritada gösterilmesi için enlem/boylam şart)
+                const lat = parseFloat(event.enlem);
+                const lng = parseFloat(event.boylam);
+
+                if (!isNaN(lat) && !isNaN(lng)) {
+                    // 1. Haritaya Pin (Marker) Ekleme
+                    const marker = L.circleMarker([lat, lng], {
+                        radius: 10,
+                        fillColor: event.renk_semasi.dark,
+                        color: event.renk_semasi.light,
+                        weight: 2,
+                        fillOpacity: 0.9
+                    }).addTo(map);
+
+                    marker.bindPopup(`<b>${event.lokasyon_isimleri}</b><br>${event.hesaplanan_gun}`);
+                }
+
+                // 2. Sidebar Kartı Oluşturma
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.style.borderLeftColor = event.renk_semasi.dark;
+                card.style.backgroundColor = event.renk_semasi.light + "1A"; // %10 şeffaf arka plan
+
+                // İsim temizleme (Mosaic/Ceramic kısmını atar)
+                const cleanName = event.lokasyon_isimleri
+                    .replace(/Mosaic Classes in /gi, '')
+                    .replace(/Ceramic Classes in /gi, '');
+
+                card.innerHTML = `
+                    <h3>${cleanName}</h3>
+                    <div class="card-info">📅 ${new Date(event.baslangic_tarihi).toLocaleDateString('tr-TR')} - ${new Date(event.bitis_tarihi).toLocaleDateString('tr-TR')}</div>
+                    <div class="day-badge" style="color: ${event.renk_semasi.dark}">${event.hesaplanan_gun}</div>
+                `;
+
+                card.onclick = () => {
+                    if (!isNaN(lat)) map.setView([lat, lng], 8);
+                };
+
+                listContainer.appendChild(card);
+            });
+        }
+
+        initDashboard();
+    </script>
+</body>
+</html>
